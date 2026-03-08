@@ -1,0 +1,22 @@
+{
+  "name": "gesture-ninja",
+  "version": "1.0.0",
+  "description": "Fruit Ninja-style game with hand gesture controls",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.160.0",
+    "@mediapipe/hands": "^0.4.1675469240",
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "gsap": "^3.12.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12",
+    "@types/three": "^0.160.0"
+  }
+}
