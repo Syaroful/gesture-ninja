@@ -24,14 +24,14 @@ export class SpawnSystem {
   private readonly minX = -6;
   private readonly maxX = 6;
   private readonly spawnY = -8;
-  private readonly targetY = 4; // Increased from 2 for higher throws
+  private readonly targetY = 10; // Increased from 4 for even higher throws
   
   constructor(scene: THREE.Scene, difficulty: number = 1) {
     this.scene = scene;
     this.config = {
       difficulty,
-      minSpeed: 9, // Increased from 6 for higher throws
-      maxSpeed: 14, // Increased from 10
+      minSpeed: 15, // Increased from 9 for higher throws
+      maxSpeed: 20, // Increased from 14
       spawnRate: 1.5 // seconds between spawns
     };
     
