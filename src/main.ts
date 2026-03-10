@@ -8,6 +8,7 @@ import { GameStateManager } from './game/GameState';
 import { SpawnSystem } from './systems/SpawnSystem';
 import { ParticleSystem } from './systems/ParticleSystem';
 import { CollisionSystem } from './systems/CollisionSystem';
+import { SoundManager } from './systems/SoundManager';
 import { SlashTrail } from './entities/SlashTrail';
 import { Fruit } from './entities/Fruit';
 import { Bomb } from './entities/Bomb';
@@ -38,11 +39,16 @@ class GestureNinja {
   private screenShake: number = 0;
   private shakeIntensity: number = 0;
   
+  // Sound
+  private soundManager!: SoundManager;
+  private flashOverlay!: THREE.Mesh;
+  
   constructor() {
     this.initThree();
     this.initGameSystems();
     this.initUI();
     this.initHandTracking();
+    this.initSound();
     
     // Hide loading
     document.getElementById('loading')?.classList.add('hidden');
@@ -172,13 +178,55 @@ class GestureNinja {
     const startBtn = document.getElementById('btn-start');
     const restartBtn = document.getElementById('btn-restart');
     
-    startBtn?.addEventListener('click', () => this.startGame());
-    restartBtn?.addEventListener('click', () => this.startGame());
+    startBtn?.addEventListener('click', () => {
+      this.soundManager.playClick();
+      this.startGame();
+    });
+    restartBtn?.addEventListener('click', () => {
+      this.soundManager.playClick();
+      this.startGame();
+    });
   }
   
   private async initHandTracking(): Promise<void> {
     // We'll initialize MediaPipe when the game starts
     // to avoid blocking the UI
+  }
+  
+  private initSound(): void {
+    this.soundManager = new SoundManager();
+  }
+  
+  private createFlashOverlay(): void {
+    // Create a full-screen flash overlay
+    const geometry = new THREE.PlaneGeometry(50, 50);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0
+    });
+    this.flashOverlay = new THREE.Mesh(geometry, material);
+    this.flashOverlay.position.z = 5;
+    this.scene.add(this.flashOverlay);
+  }
+  
+  private flashScreen(color: number, intensity: number = 0.5): void {
+    if (!this.flashOverlay) this.createFlashOverlay();
+    
+    const material = this.flashOverlay.material as THREE.MeshBasicMaterial;
+    material.color.setHex(color);
+    material.opacity = intensity;
+    
+    // Fade out
+    const fadeOut = () => {
+      material.opacity -= 0.05;
+      if (material.opacity > 0) {
+        requestAnimationFrame(fadeOut);
+      } else {
+        material.opacity = 0;
+      }
+    };
+    fadeOut();
   }
   
   private async startCamera(): Promise<void> {
@@ -326,6 +374,10 @@ class GestureNinja {
     this.gameState.setState('gameOver');
     this.gameLoop.stop();
     
+    // Play game over sound
+    this.soundManager.playGameOver();
+    this.triggerScreenShake(2);
+    
     // Stop camera
     if (this.handTracker) {
       this.handTracker = null;
@@ -388,6 +440,11 @@ class GestureNinja {
         objects
       );
       
+      // Play slice sound on fast movement (throttled by speed check)
+      if (speed > 0.3) {
+        this.soundManager.playSlice();
+      }
+      
       // Process hits
       for (const obj of hits) {
         this.processHit(obj);
@@ -408,14 +465,12 @@ class GestureNinja {
     if (type === 'bomb') {
       // Bomb hit!
       this.gameState.loseLife();
-      this.particles.emitExplosion(position, 50);
-      this.triggerScreenShake(1);
+      this.particles.emitExplosion(position, 80); // More particles
+      this.soundManager.playBomb();
+      this.triggerScreenShake(1.5); // Stronger shake
       
-      // Flash screen red
-      this.scene.background = new THREE.Color(0xff0000);
-      setTimeout(() => {
-        this.scene.background = new THREE.Color(0x0a0a0f);
-      }, 100);
+      // Flash screen red with overlay
+      this.flashScreen(0xff0000, 0.6);
       
       // Check game over
       if (this.gameState.get().lives <= 0) {
@@ -424,9 +479,20 @@ class GestureNinja {
     } else {
       // Fruit hit!
       const fruit = obj as Fruit;
+      const state = this.gameState.get();
+      const newScore = state.score + fruit.getPoints();
       this.gameState.addScore(fruit.getPoints());
       
-      // Juice particles
+      // Check for combo
+      const combo = state.combo;
+      if (combo > 2) {
+        this.soundManager.playCombo(combo);
+        this.triggerScreenShake(0.3 * Math.min(combo, 5));
+      } else {
+        this.soundManager.playFruitHit();
+      }
+      
+      // More juice particles
       const colors: { [key: string]: THREE.Color } = {
         apple: new THREE.Color(0xff3333),
         watermelon: new THREE.Color(0xff6666),
@@ -437,7 +503,7 @@ class GestureNinja {
       };
       
       const color = colors[type] || new THREE.Color(0xff6666);
-      this.particles.emit(position, 20, color);
+      this.particles.emit(position, 30, color, 6, 1.5); // More particles, faster
     }
   }
   
